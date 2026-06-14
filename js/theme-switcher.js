@@ -17,6 +17,7 @@ class ThemeSwitcher {
       "catppuccin-macchiato": "😻 Catppuccin Macchiato",
       "catppuccin-mocha": "😼 Catppuccin Mocha",
       "synthwave-84": "🎹 SynthWave '84",
+      "noir-gold": "✦ Noir Gold",
     };
 
     this.currentTheme = this.getStoredTheme();
