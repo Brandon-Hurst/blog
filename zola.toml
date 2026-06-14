@@ -18,6 +18,7 @@ theme = "catppuccin-mocha"
 
 [extra]
 color_scheme = "noir-gold"
+copyright = "© $YEAR Brandon Hurst"
 color_scheme_switcher = true
 layout = "center"
 show_default_author = true
