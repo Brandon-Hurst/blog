@@ -20,10 +20,10 @@
           </name>
         </author>
         
-        <link rel="alternate" type="text/html" href="https://brandon-hurst.github.io/blog/blog/1-writing-as-an-engineer/"/>
-        <id>https://brandon-hurst.github.io/blog/blog/1-writing-as-an-engineer/</id>
+        <link rel="alternate" type="text/html" href="https://brandon-hurst.github.io/blog/1-writing-as-an-engineer/"/>
+        <id>https://brandon-hurst.github.io/blog/1-writing-as-an-engineer/</id>
         
-        <content type="html" xml:base="https://brandon-hurst.github.io/blog/blog/1-writing-as-an-engineer/">&lt;p&gt;&lt;em&gt;&lt;strong&gt;Okay, so this is my first blog post ever. You&#x27;ve been warned -- I&#x27;m new at this!&lt;&#x2F;strong&gt;&lt;&#x2F;em&gt;&lt;&#x2F;p&gt;
+        <content type="html" xml:base="https://brandon-hurst.github.io/blog/1-writing-as-an-engineer/">&lt;p&gt;&lt;em&gt;&lt;strong&gt;Okay, so this is my first blog post ever. You&#x27;ve been warned -- I&#x27;m new at this!&lt;&#x2F;strong&gt;&lt;&#x2F;em&gt;&lt;&#x2F;p&gt;
 &lt;h2 id=&quot;who-am-i&quot;&gt;Who Am I?&lt;&#x2F;h2&gt;
 &lt;img src=&quot;&#x2F;yellowstone-selfie-aug2023.png&quot; alt=&quot;Me at Yellowstone&quot; width=300 style=&quot;display:block; margin:auto;&quot; &#x2F;&gt;
 &lt;p&gt;I am an embedded systems engineer with a background in electronics. I also love to play guitar (and, albeit sparingly, piano). I love music and movies with a burning passion, and I very much consider myself a technical creative. This will primarily be a technical blog, but I reserve the right to include musings on just about anything. Read on for a manifesto of sorts...&lt;&#x2F;p&gt;
