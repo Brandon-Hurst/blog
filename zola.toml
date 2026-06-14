@@ -1,0 +1,36 @@
+base_url = "https://brandon-hurst.github.io/blog"
+title = "Brandon Hurst's Blog"
+author = "Brandon Hurst"
+description = "Musings on Embedded Systems, Music,  Art, and Life"
+
+compile_sass = true
+generate_feeds = true
+build_search_index = true
+
+theme = "terminus"
+
+[markdown]
+render_emoji = true
+bottom_footnotes = true
+
+[markdown.highlighting]
+theme = "catppuccin-mocha"
+
+[extra]
+color_scheme = "noir-gold"
+color_scheme_switcher = true
+layout = "center"
+show_default_author = true
+copy_button = true
+
+main_menu = [
+    { name = "blog", url = "blog", trailing_slash = true },
+]
+
+[extra.content_security_policy]
+enable = true
+allowed_domains = []
+
+[extra.responsive_images]
+widths = [640, 784, 1280, 1920, 2560]
+fallback_width = 1280
