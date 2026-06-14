@@ -12,7 +12,7 @@
             submodules: true  # needed for the terminus theme
         - name: Install Zola
           run: |
-            curl -sL https://github.com/getzola/zola/releases/download/v0.19.2/zola-v0.19.2-x86_64-unknown-linux-gnu.tar.gz \
+            curl -sL https://github.com/getzola/zola/releases/download/v0.22.1/zola-v0.22.1-x86_64-unknown-linux-gnu.tar.gz \
               | tar -xz -C /usr/local/bin
         - name: Build
           run: zola build
