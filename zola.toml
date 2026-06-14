@@ -24,7 +24,7 @@ show_default_author = true
 copy_button = true
 
 main_menu = [
-    { name = "blog", url = "blog", trailing_slash = true },
+    { name = "blog", url = "", trailing_slash = true },
 ]
 
 [extra.content_security_policy]
