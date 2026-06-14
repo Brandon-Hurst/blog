@@ -1,4 +1,4 @@
 User-agent: *
 Disallow:
 Allow: /
-Sitemap: https://brandon-hurst.github.io/blog/sitemap.xml
+Sitemap: https://tethered-embedded.io/sitemap.xml
