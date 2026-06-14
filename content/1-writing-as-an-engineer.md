@@ -7,7 +7,7 @@ date = 2026-06-13
 
 ## Who Am I?
 
-<img src="/yellowstone-selfie-aug2023.png" alt="Me at Yellowstone" width=300 style="display:block; margin:auto;" />
+<img src="/blog/yellowstone-selfie-aug2023.png" alt="Me at Yellowstone" width=300 style="display:block; margin:auto;" />
 
 I am an embedded systems engineer with a background in electronics. I also love to play guitar (and, albeit sparingly, piano). I love music and movies with a burning passion, and I very much consider myself a technical creative. This will primarily be a technical blog, but I reserve the right to include musings on just about anything. Read on for a manifesto of sorts...
 
