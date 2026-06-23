@@ -17,7 +17,7 @@ I'm making a blog. Why am I doing this? There are many reasons it is an overtly 
 
 - Writing on the internet is easily generated like never before, technical and otherwise
 - Lots of tech people have a lot of reading to do. What makes what I have to say worth hearing? 
-- All of my words will jsut get fed into the latest AI, my expertise anonymized, and my name will disappear from my knowledge forever
+- All of my words will just get fed into the latest AI, my expertise anonymized, and my name will disappear from my knowledge forever
 
 The fact of the matter is I really do love to write. I always said if I wasn't an engineer, I would've been an English teacher. Like many, I feel I could've walked down a lot of paths in life, but writing is one thing I still consider a sacred act. Be it my lab notes, a journal, a text, or even (yes) an email, I believe that writing is one of the most fulfilling things we can spend our time doing. I don't even feel like I should bother explaining it here...in some sense, you get it or you don't. It helps me work out how I'm feeling, what I've learned, what I've yet to learn, and the artifact of it is a snapshot of my mind.  
 
