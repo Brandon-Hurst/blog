@@ -29,12 +29,12 @@
     <meta property="og:url" content="https://brandon-hurst.github.io/blog/2-jtag-debug-early-linux-boot/">
     <meta property="og:description" content="Musings on Embedded Systems, Music,  Art, and Life">
     <meta property="og:site_name" content="Brandon Hurst&#x27;s Blog">
-    <meta property="og:updated_time" content="2026-09-07T16:42:26.886775972+00:00">
+    <meta property="og:updated_time" content="2026-09-07T17:14:21.098143268+00:00">
     <meta property="article:published_time" content="2026-09-07T00:00:00+00:00">
     <meta name="twitter:label1" content="Written by">
     <meta name="twitter:data1" content="Brandon Hurst">
     <meta name="twitter:label2" content="Reading time">
-    <meta name="twitter:data2" content="4 min">
+    <meta name="twitter:data2" content="5 min">
 </head>
 
 <body class="layout-center" data-theme="noir-gold">
@@ -65,15 +65,15 @@
                     <li role="separator" aria-hidden="true">::</li>
                     <li title="Author">Brandon Hurst</li>
                     <li role="separator" aria-hidden="true">::</li>
-                    <li title="762 words"><time datetime="PT4M">4 min</time> read</li>
+                    <li title="832 words"><time datetime="PT5M">5 min</time> read</li>
                 </ul>
             </header>
 
 <p>Debugging early boot problems with Embedded Linux can be difficult, especially when the system isn't able to boot far enough to provide console logging over a serial or network connection. One way to attain more visibility for early boot is to build the kernel with debug symbols, and use a JTAG debugger with GDB to step through the boot process.</p>
-<p>This originally started as internal documentation I wrote for <a rel="external" href="https://analogdevicesinc.github.io/lnxdsp-adi-meta/index.html">Analog Devices' ADSP-SC5xx Linux platform</a>, but the approach generalizes to pretty much any embedded Linux target with JTAG access. I'm reposting it here in case it's useful to others working through the same kind of pain.</p>
-<p>Before proceeding with this guide, make sure your kernel is built and your SDK is populated for your target hardware -- that part is platform-specific and outside the scope of this post.</p>
+<p>This originally started as documentation I wrote for <a rel="external" href="https://analogdevicesinc.github.io/lnxdsp-adi-meta/index.html">Analog Devices' ADSP-SC5xx Linux platform</a>, but the approach generalizes to pretty much any embedded Linux target with JTAG access. I'm reposting it here in case it's useful to others working through the same kind of pain. Disclaimer: I currently work for ADI. Everything here is my own thoughts, and not representative of ADI.</p>
+<p>Before proceeding with this guide, make sure your kernel is built and your SDK is populated for your target hardware -- that part is platform-specific and outside the scope of this post. I'll be using an ADI Yocto image (ADI version 5.0.1, kernel version 6.12.0) for ADSP-SC589 as a useful reference. The general principles I'll go over still apply for other build systems such as buildroot or raw GNU Make, but may require some reader investigation to achieve the same results.</p>
 <h2 id="background-build-system">Background (Build System)</h2>
-<p>The build system should already output a <code>vmlinux</code> file, which is an uncompressed and statically linked ELF (Executable and Linkable Format) file with the Linux kernel binary. This file must include debug symbol information to be used with GDB for early boot debugging. Many build systems also produce files like <code>vmlinuz</code>, <code>Image</code>, <code>zImage</code>, or <code>fitImage</code>, which are stripped of debug symbols and compressed for loading to the target hardware.</p>
+<p>The build system should already output a <code>vmlinux</code> file as an intermediate artifact. This is an uncompressed and statically linked ELF (Executable and Linkable Format) file with the Linux kernel binary. The file must include debug symbol information to be used with GDB for early boot debugging. Many build systems also produce files like <code>vmlinuz</code>, <code>Image</code>, <code>zImage</code>, or <code>fitImage</code>, which are stripped of debug symbols and compressed for loading to the target hardware.</p>
 <p>To check whether a given <code>vmlinux</code> file contains debug symbols, use the <code>file</code> or <code>readelf</code> utilities. The following example shows the <code>file</code> output for a kernel build:</p>
 <pre class="giallo" style="color: #CDD6F4; background-color: #1E1E2E;"><code data-lang="shellscript"><span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">file</span><span style="color: #A6E3A1;"> -b tmp/work/adsp_sc589_mini-adi_glibc-linux-gnueabi/linux-adi/6.12/linux-adsp_sc589_mini-standard-build/vmlinux</span></span>
 <span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">ELF</span><span style="color: #A6E3A1;"> 32-bit LSB executable, ARM, EABI5 version</span><span style="color: #FAB387;"> 1</span><span> (SYSV), statically linked, BuildID</span><span style="color: #9399B2;">[</span><span>sha1</span><span style="color: #9399B2;">]</span><span style="color: #94E2D5;">=</span><span style="color: #A6E3A1;">d36ff404bbf4e711b3e6476f987c01747f7960fb,</span><span style="color: #89B4FA;font-style: italic;"> with</span><span style="color: #A6E3A1;"> debug_info, not stripped</span></span></code></pre>
