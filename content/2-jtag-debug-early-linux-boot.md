@@ -5,13 +5,13 @@ date = 2026-09-07
 
 Debugging early boot problems with Embedded Linux can be difficult, especially when the system isn't able to boot far enough to provide console logging over a serial or network connection. One way to attain more visibility for early boot is to build the kernel with debug symbols, and use a JTAG debugger with GDB to step through the boot process.
 
-This originally started as internal documentation I wrote for [Analog Devices' ADSP-SC5xx Linux platform](https://analogdevicesinc.github.io/lnxdsp-adi-meta/index.html), but the approach generalizes to pretty much any embedded Linux target with JTAG access. I'm reposting it here in case it's useful to others working through the same kind of pain.
+This originally started as documentation I wrote for [Analog Devices' ADSP-SC5xx Linux platform](https://analogdevicesinc.github.io/lnxdsp-adi-meta/index.html), but the approach generalizes to pretty much any embedded Linux target with JTAG access. I'm reposting it here in case it's useful to others working through the same kind of pain. Disclaimer: I currently work for ADI. Everything here is my own thoughts, and not representative of ADI.
 
-Before proceeding with this guide, make sure your kernel is built and your SDK is populated for your target hardware -- that part is platform-specific and outside the scope of this post.
+Before proceeding with this guide, make sure your kernel is built and your SDK is populated for your target hardware -- that part is platform-specific and outside the scope of this post. I'll be using an ADI Yocto image (ADI version 5.0.1, kernel version 6.12.0) for ADSP-SC589 as a useful reference. The general principles I'll go over still apply for other build systems such as buildroot or raw GNU Make, but may require some reader investigation to achieve the same results.
 
 ## Background (Build System)
 
-The build system should already output a `vmlinux` file, which is an uncompressed and statically linked ELF (Executable and Linkable Format) file with the Linux kernel binary. This file must include debug symbol information to be used with GDB for early boot debugging. Many build systems also produce files like `vmlinuz`, `Image`, `zImage`, or `fitImage`, which are stripped of debug symbols and compressed for loading to the target hardware.
+The build system should already output a `vmlinux` file as an intermediate artifact. This is an uncompressed and statically linked ELF (Executable and Linkable Format) file with the Linux kernel binary. The file must include debug symbol information to be used with GDB for early boot debugging. Many build systems also produce files like `vmlinuz`, `Image`, `zImage`, or `fitImage`, which are stripped of debug symbols and compressed for loading to the target hardware.
 
 To check whether a given `vmlinux` file contains debug symbols, use the `file` or `readelf` utilities. The following example shows the `file` output for a kernel build:
 
@@ -41,7 +41,7 @@ Once a kernel build is in place, the following Kconfig symbols must be enabled:
 
 Add the following file in the Yocto sources (`sources/meta-adi/meta-adi-adsp-sc5xx/recipes-kernel/linux/linux-adi/feature/cfg/debug-symbols.cfg`):
 
-```kconfig
+```text
 # Enable kernel debug symbols for JTAG/GDB debugging
 # Use DWARF4 format and keeps frame pointers for stack backtraces
 CONFIG_DEBUG_KERNEL=y
