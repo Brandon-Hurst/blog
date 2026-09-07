@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src-attr 'unsafe-inline'">
+
+    <title>Using JTAG to Debug Early Linux Booting | Brandon Hurst&#x27;s Blog</title>
+
+    <link rel="preload" href="https://brandon-hurst.github.io/blog/fonts/FiraCode-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+    <link rel="preload" href="https://brandon-hurst.github.io/blog/fonts/FiraCode-Bold.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://brandon-hurst.github.io/blog/css/style.css?h=5c621733d89b8091f764">
+    <script src="https://brandon-hurst.github.io/blog/js/auto-close-popover-on-resize.js?h=4ef87d6fc7b98b22e044" defer></script>
+    <script src="https://brandon-hurst.github.io/blog/js/copy-code-to-clipboard.js?h=6eec6d5a29e934c1de32" defer></script>
+    <script src="https://brandon-hurst.github.io/blog/js/theme-switcher.js?h=6c195fdeb17c42293ee9" defer></script>
+
+    <link rel="canonical" href="https://brandon-hurst.github.io/blog/2-jtag-debug-early-linux-boot/">
+    <link rel="alternate" type="application/atom+xml" href="https://brandon-hurst.github.io/blog/atom.xml" title="Brandon Hurst's Blog">
+    
+    <meta name="author" content="Brandon Hurst">
+    <meta name="description" content="Musings on Embedded Systems, Music,  Art, and Life">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#211f1a">
+    <meta name="color-scheme" content="dark">
+
+    <meta property="og:title" content="Using JTAG to Debug Early Linux Booting">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://brandon-hurst.github.io/blog/2-jtag-debug-early-linux-boot/">
+    <meta property="og:description" content="Musings on Embedded Systems, Music,  Art, and Life">
+    <meta property="og:site_name" content="Brandon Hurst&#x27;s Blog">
+    <meta property="og:updated_time" content="2026-09-07T16:42:26.886775972+00:00">
+    <meta property="article:published_time" content="2026-09-07T00:00:00+00:00">
+    <meta name="twitter:label1" content="Written by">
+    <meta name="twitter:data1" content="Brandon Hurst">
+    <meta name="twitter:label2" content="Reading time">
+    <meta name="twitter:data2" content="4 min">
+</head>
+
+<body class="layout-center" data-theme="noir-gold">
+    <header class="header">
+        <div class="header-container">
+            <span class="header-logo-container">
+                <a href="https://brandon-hurst.github.io/blog">
+                    <span class="logo">Brandon Hurst&#x27;s Blog</span>
+                </a>
+            </span>
+        </div>
+        <nav class="main-menu" aria-label="Main Menu">
+            <a class="skip-to-content" href="#main">Skip to main content</a>
+            <button class="main-menu-dropdown-button" popovertarget="nav-menu">Menu</button>
+            <ul id="nav-menu" class="main-menu-items" aria-label="Site Navigation" popover>
+                <li><a href="https://brandon-hurst.github.io/blog/">blog</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main id="main">
+        <article class="post content">
+            <header>
+                <h1 class="post-title">
+                    <a href="https://brandon-hurst.github.io/blog/2-jtag-debug-early-linux-boot/">Using JTAG to Debug Early Linux Booting</a>
+                </h1>
+                <ul class="post-meta hidden">
+                    <li title="Published on 2026-09-07"><time datetime="2026-09-07">2026.09.07</time></li>
+                    <li role="separator" aria-hidden="true">::</li>
+                    <li title="Author">Brandon Hurst</li>
+                    <li role="separator" aria-hidden="true">::</li>
+                    <li title="762 words"><time datetime="PT4M">4 min</time> read</li>
+                </ul>
+            </header>
+
+<p>Debugging early boot problems with Embedded Linux can be difficult, especially when the system isn't able to boot far enough to provide console logging over a serial or network connection. One way to attain more visibility for early boot is to build the kernel with debug symbols, and use a JTAG debugger with GDB to step through the boot process.</p>
+<p>This originally started as internal documentation I wrote for <a rel="external" href="https://analogdevicesinc.github.io/lnxdsp-adi-meta/index.html">Analog Devices' ADSP-SC5xx Linux platform</a>, but the approach generalizes to pretty much any embedded Linux target with JTAG access. I'm reposting it here in case it's useful to others working through the same kind of pain.</p>
+<p>Before proceeding with this guide, make sure your kernel is built and your SDK is populated for your target hardware -- that part is platform-specific and outside the scope of this post.</p>
+<h2 id="background-build-system">Background (Build System)</h2>
+<p>The build system should already output a <code>vmlinux</code> file, which is an uncompressed and statically linked ELF (Executable and Linkable Format) file with the Linux kernel binary. This file must include debug symbol information to be used with GDB for early boot debugging. Many build systems also produce files like <code>vmlinuz</code>, <code>Image</code>, <code>zImage</code>, or <code>fitImage</code>, which are stripped of debug symbols and compressed for loading to the target hardware.</p>
+<p>To check whether a given <code>vmlinux</code> file contains debug symbols, use the <code>file</code> or <code>readelf</code> utilities. The following example shows the <code>file</code> output for a kernel build:</p>
+<pre class="giallo" style="color: #CDD6F4; background-color: #1E1E2E;"><code data-lang="shellscript"><span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">file</span><span style="color: #A6E3A1;"> -b tmp/work/adsp_sc589_mini-adi_glibc-linux-gnueabi/linux-adi/6.12/linux-adsp_sc589_mini-standard-build/vmlinux</span></span>
+<span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">ELF</span><span style="color: #A6E3A1;"> 32-bit LSB executable, ARM, EABI5 version</span><span style="color: #FAB387;"> 1</span><span> (SYSV), statically linked, BuildID</span><span style="color: #9399B2;">[</span><span>sha1</span><span style="color: #9399B2;">]</span><span style="color: #94E2D5;">=</span><span style="color: #A6E3A1;">d36ff404bbf4e711b3e6476f987c01747f7960fb,</span><span style="color: #89B4FA;font-style: italic;"> with</span><span style="color: #A6E3A1;"> debug_info, not stripped</span></span></code></pre>
+<p>The <code>with debug info, not stripped</code> indicates this file contains debug symbols.</p>
+<p>To build a kernel with debug symbols and a debuggable configuration, some extra debug symbols need to be set to "y" via Kconfig. Yocto provides many ways of adding custom configuration which include, among others:</p>
+<ol>
+<li>Altering sources directly, cleaning the shared state cache and rebuilding</li>
+<li>Providing a custom meta-layer for experimental changes or patches</li>
+<li>Modifying a source via devtool (either temporarily or committing to a patch)</li>
+<li>Using menuconfig, e.g. <code>bitbake -c menuconfig linux-adi</code></li>
+</ol>
+<p>To demonstrate the simplest example, we will alter the sources directly.</p>
+<h3 id="build-with-a-debug-configuration">Build with a Debug Configuration</h3>
+<p>Once a kernel build is in place, the following Kconfig symbols must be enabled:</p>
+<ul>
+<li><strong>CONFIG_DEBUG_KERNEL</strong> to enable kernel debug info options</li>
+<li><strong>CONFIG_DEBUG_INFO_DWARF4</strong> to set debug info format to DWARF4</li>
+<li><strong>CONFIG_FRAME_POINTER</strong> to keep frame pointers for backtraces</li>
+</ul>
+<p>Add the following file in the Yocto sources (<code>sources/meta-adi/meta-adi-adsp-sc5xx/recipes-kernel/linux/linux-adi/feature/cfg/debug-symbols.cfg</code>):</p>
+<pre class="giallo" style="color: #CDD6F4; background-color: #1E1E2E;"><code data-lang="plain"><span class="giallo-l"><span># Enable kernel debug symbols for JTAG/GDB debugging</span></span>
+<span class="giallo-l"><span># Use DWARF4 format and keeps frame pointers for stack backtraces</span></span>
+<span class="giallo-l"><span>CONFIG_DEBUG_KERNEL=y</span></span>
+<span class="giallo-l"><span>CONFIG_DEBUG_INFO_DWARF4=y</span></span>
+<span class="giallo-l"><span>CONFIG_FRAME_POINTER=y</span></span></code></pre>
+<p>Then modify the <code>linux-adi_%.bb</code> file (<code>sources/meta-adi/meta-adi-adsp-sc5xx/recipes-kernel/linux/linux-adi_%.bb</code>) to include the new configuration -- note the added <code>debug-symbols.cfg</code> line:</p>
+<pre class="giallo" style="color: #CDD6F4; background-color: #1E1E2E;"><code data-lang="plain"><span class="giallo-l"><span># ...</span></span>
+<span class="giallo-l"><span>LICENSE=&quot;GPL-2.0-only&quot;</span></span>
+<span class="giallo-l"><span>LIC_FILES_CHKSUM=&quot;file://COPYING;md5=6bc538ed5bd9a7fc9398086aedcd7e46&quot;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>DEPENDS += &quot;u-boot-mkimage-native dtc-native&quot;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span># Include kernel configuration fragments</span></span>
+<span class="giallo-l"><span># NOTE: Added debug-symbols.cfg</span></span>
+<span class="giallo-l"><span>SRC_URI:append=&quot;\</span></span>
+<span class="giallo-l"><span>      file://feature/cfg/nfs.cfg \</span></span>
+<span class="giallo-l"><span>      file://feature/cfg/crypto.cfg \</span></span>
+<span class="giallo-l"><span>      file://feature/cfg/tracepoints.cfg \</span></span>
+<span class="giallo-l"><span>      file://feature/cfg/debug-symbols.cfg</span></span>
+<span class="giallo-l"><span>&quot;</span></span>
+<span class="giallo-l"><span># ...</span></span></code></pre>
+<p>Next, rebuild the kernel with the following steps:</p>
+<pre class="giallo" style="color: #CDD6F4; background-color: #1E1E2E;"><code data-lang="shellscript"><span class="giallo-l"><span style="color: #9399B2;font-style: italic;"># Clean Yocto&#39;s shared state cache for the linux-adi recipe,</span></span>
+<span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">bitbake</span><span style="color: #A6E3A1;"> -c cleansstate linux-adi</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #9399B2;font-style: italic;"># Rebuild linux-adi</span></span>
+<span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">bitbake</span><span style="color: #A6E3A1;"> linux-adi</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #9399B2;font-style: italic;"># Copy vmlinux file to known location</span></span>
+<span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">cp</span><span style="color: #A6E3A1;"> tmp/work/adsp_sc589_mini-adi_glibc-linux-gnueabi/linux-adi/6.12/linux-adsp_sc589_mini-standard-build/vmlinux</span><span style="color: #F5C2E7;"> \</span></span>
+<span class="giallo-l"><span>   $HOME</span><span style="color: #A6E3A1;">/workspace/sc589-mini-5.0.1/vmlinux-dbg</span></span></code></pre>
+<p>This will store a kernel image with debug symbols to a known location. This file will most likely be well over 100 MiB, compared to the stripped kernel loaded to the target which will likely be 10-15 MiB depending on the enabled features.</p>
+<p>Finally, rebuild the complete Linux image including the corresponding stripped zImage file:</p>
+<pre class="giallo" style="color: #CDD6F4; background-color: #1E1E2E;"><code data-lang="shellscript"><span class="giallo-l"><span style="color: #9399B2;font-style: italic;"># Clean sstate cache for adsp-sc5xx-minimal, then rebuild</span></span>
+<span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">bitbake</span><span style="color: #A6E3A1;"> -c cleansstate adsp-sc5xx-minimal</span></span>
+<span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">bitbake</span><span style="color: #A6E3A1;"> adsp-sc5xx-minimal</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #9399B2;font-style: italic;"># Copy stripped loadable image to target boot media, e.g. http server</span></span>
+<span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">cp</span><span style="color: #A6E3A1;"> tmp/deploy/images/adsp-sc589-mini/fitImage ~/image-</span><span>*</span></span></code></pre><h2 id="load-the-image">Load the Image</h2>
+<p>Load the debug image to the target using your chosen boot media (SD, eMMC, HTTP, etc.). When booting the target, stop the U-Boot bootloader by pressing "Enter" before booting the kernel.</p>
+<h2 id="connect-openocd">Connect OpenOCD</h2>
+<p>In one terminal, connect OpenOCD with the following commands (can be placed into a script for ease of use):</p>
+<pre class="giallo" style="color: #CDD6F4; background-color: #1E1E2E;"><code data-lang="shellscript"><span class="giallo-l"><span style="color: #F5C2E7;font-style: italic;">#!/bin/bash</span></span>
+<span class="giallo-l"><span style="color: #CBA6F7;">export</span><span> sdk_usr</span><span style="color: #94E2D5;">=</span><span>/opt/adi-distro-glibc/5.0.1/sysroots/x86_64-adi_glibc_sdk-linux/usr/</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #9399B2;font-style: italic;"># Use skip_reset command to avoid resetting the target</span></span>
+<span class="giallo-l"><span>$sdk_usr/bin/openocd </span><span style="color: #F5C2E7;">\</span></span>
+<span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">   -f</span><span> $sdk_usr</span><span style="color: #A6E3A1;">/share/openocd/scripts/interface/ice2000.cfg</span><span style="color: #F5C2E7;"> \</span></span>
+<span class="giallo-l"><span style="color: #A6E3A1;">   -f</span><span> $sdk_usr</span><span style="color: #A6E3A1;">/share/openocd/scripts/target/adspsc58x.cfg</span><span style="color: #F5C2E7;"> \</span></span>
+<span class="giallo-l"><span style="color: #A6E3A1;">   -c &quot;skip_reset&quot;</span></span></code></pre><h2 id="connect-gdb">Connect GDB</h2>
+<p>In a separate terminal, connect GDB with the following command (can be placed into a script for ease of use):</p>
+<pre class="giallo" style="color: #CDD6F4; background-color: #1E1E2E;"><code data-lang="shellscript"><span class="giallo-l"><span>GDB</span><span style="color: #94E2D5;">=</span><span style="color: #A6E3A1;">&quot;/opt/adi-distro-glibc/5.0.1/sysroots/x86_64-adi_glibc_sdk-linux/usr/bin/arm-adi_glibc-linux-gnueabi/arm-adi_glibc-linux-gnueabi-gdb&quot;</span></span>
+<span class="giallo-l"><span>VMLINUX</span><span style="color: #94E2D5;">=</span><span style="color: #A6E3A1;">&quot;</span><span>$HOME</span><span style="color: #A6E3A1;">/workspace/sc589-mini-5.0.1/vmlinux-dbg&quot;</span></span>
+<span class="giallo-l"><span>LOAD_ADDR</span><span style="color: #94E2D5;">=</span><span style="color: #A6E3A1;">&quot;0xC3000000&quot;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">&quot;</span><span>$</span><span style="font-style: italic;">GDB</span><span style="color: #89B4FA;font-style: italic;">&quot;</span><span style="color: #A6E3A1;"> &quot;</span><span>$VMLINUX</span><span style="color: #A6E3A1;">&quot;</span><span style="color: #F5C2E7;"> \</span></span>
+<span class="giallo-l"><span style="color: #A6E3A1;">  -ex &quot;target extended-remote localhost:3333&quot;</span><span style="color: #F5C2E7;"> \</span></span>
+<span class="giallo-l"><span style="color: #A6E3A1;">  -ex &quot;set print pretty on&quot;</span><span style="color: #F5C2E7;"> \</span></span>
+<span class="giallo-l"><span style="color: #A6E3A1;">  -ex &quot;add-symbol-file </span><span>$VMLINUX $LOAD_ADDR</span><span style="color: #A6E3A1;">&quot;</span></span></code></pre>
+<p>A script can be used to simplify this step:</p>
+<pre class="giallo" style="color: #CDD6F4; background-color: #1E1E2E;"><code data-lang="shellscript"><span class="giallo-l"><span style="color: #F5C2E7;font-style: italic;">#!/bin/bash</span></span>
+<span class="giallo-l"><span style="color: #9399B2;font-style: italic;"># GDB helper script for SC589-MINI kernel debugging</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>GDB</span><span style="color: #94E2D5;">=</span><span style="color: #A6E3A1;">&quot;/opt/adi-distro-glibc/5.0.1/sysroots/x86_64-adi_glibc_sdk-linux/usr/bin/arm-adi_glibc-linux-gnueabi/arm-adi_glibc-linux-gnueabi-gdb&quot;</span></span>
+<span class="giallo-l"><span>VMLINUX</span><span style="color: #94E2D5;">=</span><span style="color: #A6E3A1;">&quot;</span><span>$HOME</span><span style="color: #A6E3A1;">/workspace/sc589-mini-5.0.1/vmlinux-dbg&quot;</span></span>
+<span class="giallo-l"><span>LOAD_ADDR</span><span style="color: #94E2D5;">=</span><span style="color: #A6E3A1;">&quot;0xC3000000&quot;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #CBA6F7;">if</span><span style="color: #9399B2;"> [</span><span style="color: #94E2D5;"> ! -f</span><span style="color: #A6E3A1;"> &quot;</span><span>$VMLINUX</span><span style="color: #A6E3A1;">&quot;</span><span style="color: #9399B2;"> ];</span><span style="color: #CBA6F7;"> then</span></span>
+<span class="giallo-l"><span style="color: #F38BA8;font-style: italic;">   echo</span><span style="color: #A6E3A1;"> &quot;Error: vmlinux not found at </span><span>$VMLINUX</span><span style="color: #A6E3A1;">&quot;</span></span>
+<span class="giallo-l"><span style="color: #F38BA8;font-style: italic;">   echo</span><span style="color: #A6E3A1;"> &quot;Please build the kernel first with: bitbake linux-adi&quot;</span></span>
+<span class="giallo-l"><span style="color: #F38BA8;font-style: italic;">   exit</span><span style="color: #FAB387;"> 1</span></span>
+<span class="giallo-l"><span style="color: #CBA6F7;">fi</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #CBA6F7;">if</span><span style="color: #9399B2;"> [</span><span style="color: #94E2D5;"> ! -f</span><span style="color: #A6E3A1;"> &quot;</span><span>$GDB</span><span style="color: #A6E3A1;">&quot;</span><span style="color: #9399B2;"> ];</span><span style="color: #CBA6F7;"> then</span></span>
+<span class="giallo-l"><span style="color: #F38BA8;font-style: italic;">   echo</span><span style="color: #A6E3A1;"> &quot;Error: GDB not found at </span><span>$GDB</span><span style="color: #A6E3A1;">&quot;</span></span>
+<span class="giallo-l"><span style="color: #F38BA8;font-style: italic;">   exit</span><span style="color: #FAB387;"> 1</span></span>
+<span class="giallo-l"><span style="color: #CBA6F7;">fi</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #F38BA8;font-style: italic;">echo</span><span style="color: #A6E3A1;"> &quot;Starting GDB for SC589-MINI kernel debugging...&quot;</span></span>
+<span class="giallo-l"><span style="color: #F38BA8;font-style: italic;">echo</span><span style="color: #A6E3A1;"> &quot;GDB: </span><span>$GDB</span><span style="color: #A6E3A1;">&quot;</span></span>
+<span class="giallo-l"><span style="color: #F38BA8;font-style: italic;">echo</span><span style="color: #A6E3A1;"> &quot;vmlinux: </span><span>$VMLINUX</span><span style="color: #A6E3A1;">&quot;</span></span>
+<span class="giallo-l"><span style="color: #F38BA8;font-style: italic;">echo</span><span style="color: #A6E3A1;"> &quot;Load address: </span><span>$LOAD_ADDR</span><span style="color: #A6E3A1;">&quot;</span></span>
+<span class="giallo-l"><span style="color: #F38BA8;font-style: italic;">echo</span><span style="color: #A6E3A1;"> &quot;&quot;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">&quot;</span><span>$</span><span style="font-style: italic;">GDB</span><span style="color: #89B4FA;font-style: italic;">&quot;</span><span style="color: #A6E3A1;"> &quot;</span><span>$VMLINUX</span><span style="color: #A6E3A1;">&quot;</span><span style="color: #F5C2E7;"> \</span></span>
+<span class="giallo-l"><span style="color: #A6E3A1;">   -ex &quot;target extended-remote localhost:3333&quot;</span><span style="color: #F5C2E7;"> \</span></span>
+<span class="giallo-l"><span style="color: #A6E3A1;">   -ex &quot;set print pretty on&quot;</span><span style="color: #F5C2E7;"> \</span></span>
+<span class="giallo-l"><span style="color: #A6E3A1;">   -ex &quot;add-symbol-file </span><span>$VMLINUX $LOAD_ADDR</span><span style="color: #A6E3A1;">&quot;</span></span></code></pre><h2 id="notes-on-using-gdb-to-debug-early-boot">Notes on Using GDB to Debug Early Boot</h2>
+<p>Now that a GDB connection has been established, be aware that there are a couple potential obstacles when debugging early boot:</p>
+<ul>
+<li>The kernel boots using physical addresses until the MMU is enabled</li>
+<li>The vmlinux file contains virtual addresses, which may not easily translate</li>
+</ul>
+<p>To mitigate these issues, use hardware breakpoints (<code>hbreak</code> in GDB) to capture early execution, e.g. <code>hbreak start_kernel</code> to break on the <code>start_kernel</code> function. Single stepping across MMU-enabling code should also be avoided.</p>
+<h2 id="useful-gdb-commands">Useful GDB Commands</h2>
+<p>Below is an example of debugging the kernel at early boot time that shows some useful commands to use. Within GDB, the "help" command can also be useful to get more information about these commands. Other useful resources are the GDB documentation and <a rel="external" href="https://developer.analog.com/docs/codefusion-studio/latest/tutorials/gdb-tutorial/gdb-commands/">ADI's GDB Command Reference</a>.</p>
+<p>The example below sets a breakpoint while the target is in U-Boot, which gets triggered once U-Boot loads the kernel and starts booting:</p>
+<pre class="giallo" style="color: #CDD6F4; background-color: #1E1E2E;"><code data-lang="shellscript"><span class="giallo-l"><span style="color: #9399B2;">(</span><span style="color: #89B4FA;font-style: italic;">gdb</span><span style="color: #9399B2;">)</span><span style="color: #9399B2;font-style: italic;"> # Set kernel source code path</span></span>
+<span class="giallo-l"><span style="color: #9399B2;">(</span><span style="color: #89B4FA;font-style: italic;">gdb</span><span style="color: #9399B2;">)</span><span style="color: #F38BA8;font-style: italic;"> set</span><span style="color: #A6E3A1;"> substitute-path /usr/src/kernel</span><span style="color: #94E2D5;"> &lt;</span><span style="color: #A6E3A1;">yocto-workspac</span><span>e</span><span style="color: #94E2D5;">&gt;</span><span style="color: #A6E3A1;">/build/tmp/work-shared/adsp-sc589-mini/kernel-source</span></span>
+<span class="giallo-l"><span style="color: #9399B2;">(</span><span style="color: #89B4FA;font-style: italic;">gdb</span><span style="color: #9399B2;">)</span></span>
+<span class="giallo-l"><span style="color: #9399B2;">(</span><span style="color: #89B4FA;font-style: italic;">gdb</span><span style="color: #9399B2;">)</span><span style="color: #9399B2;font-style: italic;"> # hardware breakpoints at start_kernel</span></span>
+<span class="giallo-l"><span style="color: #9399B2;">(</span><span style="color: #89B4FA;font-style: italic;">gdb</span><span style="color: #9399B2;">)</span><span style="color: #89B4FA;font-style: italic;"> hbreak</span><span style="color: #A6E3A1;"> start_kernel</span></span>
+<span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">Hardware</span><span style="color: #A6E3A1;"> assisted breakpoint</span><span style="color: #FAB387;"> 1</span><span style="color: #A6E3A1;"> at 0xc0b00da0: file /usr/src/kernel/init/main.c, line 904.</span></span>
+<span class="giallo-l"><span style="color: #9399B2;">(</span><span style="color: #89B4FA;font-style: italic;">gdb</span><span style="color: #9399B2;">)</span><span style="color: #89B4FA;font-style: italic;"> c</span></span>
+<span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">Continuing.</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">Breakpoint</span><span style="color: #A6E3A1;"> 1, start_kernel</span><span> () at /usr/src/kernel/init/main.c:905</span></span>
+<span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">905</span><span style="color: #A6E3A1;">             char</span><span> *</span><span style="color: #A6E3A1;">command_line</span><span style="color: #9399B2;">;</span></span>
+<span class="giallo-l"><span style="color: #9399B2;">(</span><span style="color: #89B4FA;font-style: italic;">gdb</span><span style="color: #9399B2;">)</span><span style="color: #89B4FA;font-style: italic;"> l</span></span>
+<span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">900</span><span style="color: #A6E3A1;">     }</span></span>
+<span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">901</span></span>
+<span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">902</span><span style="color: #A6E3A1;">     asmlinkage __visible __init __no_sanitize_address __noreturn __no_stack_protector</span></span>
+<span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">903</span><span style="color: #A6E3A1;">     void start_kernel</span><span style="color: #9399B2;">(</span><span style="color: #89B4FA;font-style: italic;">void</span><span style="color: #9399B2;">)</span></span>
+<span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">904</span><span style="color: #A6E3A1;">     {</span></span>
+<span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">905</span><span style="color: #A6E3A1;">             char</span><span> *</span><span style="color: #A6E3A1;">command_line</span><span style="color: #9399B2;">;</span></span>
+<span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">906</span><span style="color: #A6E3A1;">             char</span><span> *</span><span style="color: #A6E3A1;">after_dashes</span><span style="color: #9399B2;">;</span></span>
+<span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">907</span></span>
+<span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">908</span><span style="color: #A6E3A1;">             set_task_stack_end_magic</span><span style="color: #9399B2;">(&amp;</span><span style="color: #89B4FA;font-style: italic;">init_task</span><span style="color: #9399B2;">);</span></span>
+<span class="giallo-l"><span style="color: #89B4FA;font-style: italic;">909</span><span style="color: #A6E3A1;">             smp_setup_processor_id</span><span style="color: #9399B2;">();</span></span>
+<span class="giallo-l"><span style="color: #9399B2;">(</span><span style="color: #89B4FA;font-style: italic;">gdb</span><span style="color: #9399B2;">)</span><span style="color: #89B4FA;font-style: italic;"> bt</span></span>
+<span class="giallo-l"><span style="color: #9399B2;font-style: italic;">#0  start_kernel () at /usr/src/kernel/init/main.c:905</span></span>
+<span class="giallo-l"><span style="color: #9399B2;font-style: italic;">#1  0x00000000 in ?? ()</span></span>
+<span class="giallo-l"><span style="color: #9399B2;">(</span><span style="color: #89B4FA;font-style: italic;">gdb</span><span style="color: #9399B2;">)</span></span></code></pre>
+        </article>
+        <nav class="post-navigation">
+            <header class="post-navigation-title">
+                <h2>Read More Posts</h2>
+                <hr>
+            </header>
+            <div class="post-navigation-buttons">
+                <a rel="prev" href="https://brandon-hurst.github.io/blog/1-writing-as-an-engineer/" aria-label="Prev article" aria-describedby="prev-title">
+                    [<span id="prev-title">Writing As An Engineer (in the AI Era)</span>]&nbsp;&gt;
+                </a>
+            </div>
+        </nav>
+    </main>
+    <footer class="footer">
+        <address class="socials">
+            <ul>
+                <li>
+                    <a class="social-link" href="https://brandon-hurst.github.io/blog/atom.xml" title="atom feed">
+                        <svg role="img" aria-label="atom feed">
+                            <use href="https://brandon-hurst.github.io/blog/images/social_icons/rss.svg#icon" aria-hidden="true" />
+                        </svg>
+                    </a>
+                </li>
+            </ul>
+        </address>
+        <p class="copyright">
+            <span>© <time>2026</time> Brandon Hurst</span>
+        </p>
+    </footer>
+</body>
+
+</html>
